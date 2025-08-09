@@ -1,0 +1,8 @@
+README.md
+main.py
+pyproject.toml
+agentmail_sales_agent.egg-info/PKG-INFO
+agentmail_sales_agent.egg-info/SOURCES.txt
+agentmail_sales_agent.egg-info/dependency_links.txt
+agentmail_sales_agent.egg-info/requires.txt
+agentmail_sales_agent.egg-info/top_level.txt

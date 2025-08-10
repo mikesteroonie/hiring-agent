@@ -6,15 +6,13 @@ import asyncio
 from threading import Thread
 import uuid
 
-import ngrok
 from flask import Flask, request, Response
 
 from agentmail import AgentMail
 from agentmail_toolkit.openai import AgentMailToolkit
 from agents import WebSearchTool, Agent, Runner
 
-port = 8080
-domain = os.getenv("WEBHOOK_DOMAIN")
+port = int(os.getenv("PORT", 8080))
 username = os.getenv("INBOX_USERNAME")
 inbox = f"{username}@agentmail.to"
 
@@ -22,51 +20,35 @@ if not username:
     print("⚠️  WARNING: INBOX_USERNAME is not set!")
     print("   Make sure your .env file contains: INBOX_USERNAME=hiring-test")
 
-client_id = "hiring-agent-2"
+client_id = "hiring-agent-1"
 
-listener = ngrok.forward(port, domain=domain, authtoken_from_env=True)
 app = Flask(__name__)
 
 client = AgentMail(api_key=os.getenv("AGENTMAIL_API_KEY"))
 
-try:
-    if os.getenv("INBOX_USERNAME"):
-        print(f"Creating inbox: {username}")
-        client.inboxes.create(username=username, client_id=client_id) 
-    else:
-        print("⚠️  WARNING: INBOX_USERNAME is not set!")
-except Exception as exc:
-    print(f"Inbox ensure skipped: {exc}")
+inbox = client.inboxes.create(username=username, client_id=client_id) 
 
-# Get the ngrok public URL and display it
+webhook_url = os.getenv("WEBHOOK_URL")
+
 try:
-    public_url = listener.url() if hasattr(listener, 'url') else None
-    if not public_url:
-        public_url = getattr(listener, 'public_url', None)
-    if not public_url and domain:
-        public_url = f"https://{domain}"
-    
-    if public_url:
-        print(f"\n🔗 NGROK PUBLIC URL: {public_url}")
-        print(f"📧 WEBHOOK URL SHOULD BE: {public_url}/webhooks")
-        print(f"🎯 TEST URL: {public_url}/")
-        
-        # Try to auto-configure the webhook
-        webhook_url = f"{public_url}/webhooks"
-       
-    else:
-        print("⚠️  Could not determine ngrok public URL")
+    client.webhooks.create(
+        url=webhook_url,
+        inbox_ids=[inbox.inbox_id],
+        event_types=["message.received"],
+        client_id="hiring-agent-webhook",
+    )
+    print(f"Webhook created for: {webhook_url}")
 except Exception as e:
-    print(f"Error getting ngrok URL: {e}")
+    print(f"Webhook creation failed: {e}")
 
-# Load system prompt from file
-try:
-    with open("system_prompt.txt", "r") as f:
-        system_prompt = f.read().strip()
-    instructions = system_prompt.replace("{inbox}", inbox)
-    print("✅ System prompt loaded from system_prompt.txt")
-except FileNotFoundError:
-    print("⚠️  WARNING: system_prompt.txt not found!")
+system_prompt = os.getenv("SYSTEM_PROMPT")
+if system_prompt:
+    instructions = system_prompt.strip().replace("{inbox}", inbox)
+    print("System prompt loaded from environment variable")
+else:
+    print("WARNING: SYSTEM_PROMPT environment variable not set!")
+    # Fallback to a basic prompt
+    instructions = f"You are a hiring agent for the inbox {inbox}. Help candidates with their applications."
 
 
 agent = Agent(
@@ -129,5 +111,6 @@ Use these EXACT values when calling get_thread and get_attachment tools.
 
 if __name__ == "__main__":
     print(f"Inbox: {inbox}\n")
+    print(f"Starting server on port {port}")
 
-    app.run(port=port)
+    app.run(host="0.0.0.0", port=port)

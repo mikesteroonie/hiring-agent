@@ -26,14 +26,15 @@ app = Flask(__name__)
 
 client = AgentMail(api_key=os.getenv("AGENTMAIL_API_KEY"))
 
-inbox = client.inboxes.create(username=username, client_id=client_id) 
+inbox_obj = client.inboxes.create(username=username, client_id=client_id) 
+inbox_address = f"{username}@agentmail.to"
 
 webhook_url = os.getenv("WEBHOOK_URL")
 
 try:
     client.webhooks.create(
         url=webhook_url,
-        inbox_ids=[inbox.inbox_id],
+        inbox_ids=[inbox_obj.inbox_id],
         event_types=["message.received"],
         client_id="hiring-agent-webhook",
     )
@@ -43,12 +44,12 @@ except Exception as e:
 
 system_prompt = os.getenv("SYSTEM_PROMPT")
 if system_prompt:
-    instructions = system_prompt.strip().replace("{inbox}", inbox)
+    instructions = system_prompt.strip().replace("{inbox}", inbox_address)
     print("System prompt loaded from environment variable")
 else:
     print("WARNING: SYSTEM_PROMPT environment variable not set!")
     # Fallback to a basic prompt
-    instructions = f"You are a hiring agent for the inbox {inbox}. Help candidates with their applications."
+    instructions = f"You are a hiring agent for the inbox {inbox_address}. Help candidates with their applications."
 
 
 agent = Agent(
@@ -101,7 +102,7 @@ Use these EXACT values when calling get_thread and get_attachment tools.
     print("Response:\n\n", response.final_output, "\n")
 
     client.inboxes.messages.reply(
-        inbox_id=inbox,
+        inbox_id=inbox_obj.inbox_id,
         message_id=email["message_id"],
         html=response.final_output,
     )
@@ -110,7 +111,7 @@ Use these EXACT values when calling get_thread and get_attachment tools.
 
 
 if __name__ == "__main__":
-    print(f"Inbox: {inbox}\n")
+    print(f"Inbox: {inbox_address}\n")
     print(f"Starting server on port {port}")
 
     app.run(host="0.0.0.0", port=port)

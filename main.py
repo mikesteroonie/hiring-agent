@@ -20,7 +20,7 @@ if not username:
     print("⚠️  WARNING: INBOX_USERNAME is not set!")
     print("   Make sure your .env file contains: INBOX_USERNAME=hiring-test")
 
-client_id = "hiring-agent-2"
+client_id = "hiring-agent-1"
 
 app = Flask(__name__)
 

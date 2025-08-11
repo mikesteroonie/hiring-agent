@@ -31,16 +31,12 @@ inbox_address = f"{username}@agentmail.to"
 
 webhook_url = os.getenv("WEBHOOK_URL")
 
-try:
-    client.webhooks.create(
-        url=webhook_url,
-        inbox_ids=[inbox_obj.inbox_id],
-        event_types=["message.received"],
-        client_id="hiring-agent-webhook",
-    )
-    print(f"Webhook created for: {webhook_url}")
-except Exception as e:
-    print(f"Webhook creation failed: {e}")
+client.webhooks.create(
+    url=webhook_url,
+    inbox_ids=[inbox_obj.inbox_id],
+    event_types=["message.received"],
+    client_id="hiring-agent-webhook",
+)
 
 system_prompt = os.getenv("SYSTEM_PROMPT")
 if system_prompt:
@@ -77,37 +73,12 @@ def process_webhook(payload):
 
     email = payload["message"]
 
-    # # Include attachment info if present
-    # attachments_info = ""
-    # if email.get("attachments"):
-    #     attachments_info = "\nAttachments:\n"
-    #     for att in email["attachments"]:
-    #         attachments_info += f"- {att['filename']} (ID: {att['attachment_id']}, Type: {att['content_type']}, Size: {att['size']} bytes)\n"
-    print("🔍 DEBUG: Starting process_webhook")
-    print(f"🔍 DEBUG: Payload keys: {list(payload.keys())}")
-    
-    try:
-        email = payload["message"]
-        print(f"🔍 DEBUG: Email keys: {list(email.keys())}")
-        print(f"🔍 DEBUG: From: {email.get('from', 'N/A')}")
-        print(f"🔍 DEBUG: Subject: {email.get('subject', 'N/A')}")
-        print(f"🔍 DEBUG: Message ID: {email.get('message_id', 'N/A')}")
-        print(f"🔍 DEBUG: Thread ID: {email.get('thread_id', 'N/A')}")
-        
-        # Include attachment info if present
-        attachments_info = ""
-        if email.get("attachments"):
-            print(f"🔍 DEBUG: Found {len(email['attachments'])} attachments")
-            attachments_info = "\nAttachments:\n"
-            for i, att in enumerate(email["attachments"]):
-                print(f"🔍 DEBUG: Attachment {i}: {att}")
-                attachments_info += f"- {att['filename']} (ID: {att['attachment_id']}, Type: {att['content_type']}, Size: {att['size']} bytes)\n"
-        else:
-            print("🔍 DEBUG: No attachments found")
-        
-    except Exception as e:
-        print(f"🔍 DEBUG: Error processing email: {e}")
-        return
+    # Include attachment info if present
+    attachments_info = ""
+    if email.get("attachments"):
+        attachments_info = "\nAttachments:\n"
+        for att in email["attachments"]:
+            attachments_info += f"- {att['filename']} (ID: {att['attachment_id']}, Type: {att['content_type']}, Size: {att['size']} bytes)\n"
     
     prompt = f"""
 From: {email["from"]}

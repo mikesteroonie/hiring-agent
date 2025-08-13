@@ -78,18 +78,36 @@ def process_webhook(payload):
         thread = client.inboxes.threads.get(inbox_id=inbox_obj.inbox_id, thread_id=thread_id)
         print(f"🔍 DEBUG: Fetched thread {thread_id} with {len(thread.messages)} messages")
         
+        # Detect if the job/role details block has already been sent in this thread
+        has_already_sent_job_block = False
+        for _m in thread.messages:
+            _content = (_m.text or _m.html or "")
+            if (
+                "For legal reasons I am copy pasting the details of the role" in _content
+                or "<strong>Role:</strong> Founding Engineer" in _content
+            ):
+                has_already_sent_job_block = True
+                break
+        
         thread_context = []
         for msg in thread.messages:
-            if msg.role == "user":
-                thread_context.append({"role": "user", "content": msg.content})
-            elif msg.role == "assistant":
-                thread_context.append({"role": "assistant", "content": msg.content})
+            # In AgentMail, messages from external senders are "user" messages
+            # Messages sent from your inbox are "assistant" messages
+            message_content = msg.text or msg.html or "No content"
+            
+            # Check if this message is from an external sender (not from your inbox)
+            if hasattr(msg, 'from_') and msg.from_ and not msg.from_.endswith('@agentmail.to'):
+                thread_context.append({"role": "user", "content": message_content})
+            else:
+                # This is a message from your inbox (assistant)
+                thread_context.append({"role": "assistant", "content": message_content})
         
         print(f"🔍 DEBUG: Thread context has {len(thread_context)} messages")
         
     except Exception as e:
         print(f"⚠️  Error fetching thread {thread_id}: {e}")
         thread_context = []
+        has_already_sent_job_block = False
 
     # Include attachment info if present
     attachments_info = ""
@@ -110,6 +128,20 @@ IMPORTANT FOR TOOL CALLS:
 
 Use these EXACT values when calling get_thread and get_attachment tools.
 """
+
+    # Guardrail: Only include the role/company/benefits block once per thread
+    if has_already_sent_job_block:
+        prompt += (
+            "\nThe role/company/benefits block has ALREADY been sent earlier in this thread. "
+            "Do NOT include or repeat that block again. Respond with ONLY a concise follow-up question "
+            "based on the candidate's resume and prior messages."
+        )
+    else:
+        prompt += (
+            "\nThis is the FIRST reply in this thread that includes the role/company/benefits block. "
+            "Include that block exactly once as specified by your instructions, then ask ONE concise question."
+        )
+    
     print("Prompt:\n\n", prompt, "\n")
 
     # Pass the actual thread context to the agent

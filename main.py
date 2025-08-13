@@ -54,8 +54,6 @@ agent = Agent(
     tools=AgentMailToolkit(client).get_tools() + [WebSearchTool()],
 )
 
-messages = []
-
 @app.route("/", methods=["POST"])
 def receive_webhook_root():
     print("WEBHOOK received at ROOT /")
@@ -69,9 +67,29 @@ def root_get():
 
 
 def process_webhook(payload):
-    global messages
-
     email = payload["message"]
+    thread_id = email.get("thread_id")
+    
+    if not thread_id:
+        print("⚠️  No thread_id found in email payload")
+        return
+    
+    try:
+        thread = client.inboxes.threads.get(inbox_id=inbox_obj.inbox_id, thread_id=thread_id)
+        print(f"🔍 DEBUG: Fetched thread {thread_id} with {len(thread.messages)} messages")
+        
+        thread_context = []
+        for msg in thread.messages:
+            if msg.role == "user":
+                thread_context.append({"role": "user", "content": msg.content})
+            elif msg.role == "assistant":
+                thread_context.append({"role": "assistant", "content": msg.content})
+        
+        print(f"🔍 DEBUG: Thread context has {len(thread_context)} messages")
+        
+    except Exception as e:
+        print(f"⚠️  Error fetching thread {thread_id}: {e}")
+        thread_context = []
 
     # Include attachment info if present
     attachments_info = ""
@@ -94,7 +112,8 @@ Use these EXACT values when calling get_thread and get_attachment tools.
 """
     print("Prompt:\n\n", prompt, "\n")
 
-    response = asyncio.run(Runner.run(agent, messages + [{"role": "user", "content": prompt}]))
+    # Pass the actual thread context to the agent
+    response = asyncio.run(Runner.run(agent, thread_context + [{"role": "user", "content": prompt}]))
     print("Response:\n\n", response.final_output, "\n")
 
     client.inboxes.messages.reply(
@@ -102,8 +121,6 @@ Use these EXACT values when calling get_thread and get_attachment tools.
         message_id=email["message_id"],
         html=response.final_output,
     )
-
-    messages = response.to_input_list()
 
 
 if __name__ == "__main__":
